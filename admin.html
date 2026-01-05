@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TooTube Admin</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #fff; min-height: 100vh; }
+        
+        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-box { background: #16213e; padding: 40px; border-radius: 12px; width: 100%; max-width: 400px; }
+        .login-box h1 { color: #ffd700; margin-bottom: 24px; text-align: center; }
+        .login-box input { width: 100%; padding: 12px 16px; border: none; border-radius: 8px; background: #0f3460; color: #fff; font-size: 16px; margin-bottom: 16px; }
+        .login-box button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #ffd700; color: #000; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .login-box button:hover { background: #ffed4a; }
+        .login-error { color: #ff6b6b; text-align: center; margin-bottom: 16px; }
+        
+        .admin-panel { display: none; }
+        .admin-panel.active { display: block; }
+        
+        .header { background: #16213e; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #ffd700; }
+        .header h1 { color: #ffd700; font-size: 24px; }
+        .header button { padding: 8px 16px; border: none; border-radius: 6px; background: #ff6b6b; color: #fff; cursor: pointer; }
+        
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 24px; }
+        .stat-card { background: #16213e; padding: 24px; border-radius: 12px; text-align: center; }
+        .stat-card .icon { font-size: 48px; color: #ffd700; }
+        .stat-card .value { font-size: 36px; font-weight: 700; margin: 8px 0; }
+        .stat-card .label { color: #888; }
+        
+        .tabs { display: flex; gap: 8px; padding: 0 24px; background: #16213e; }
+        .tab { padding: 16px 24px; border: none; background: transparent; color: #888; font-size: 16px; cursor: pointer; border-bottom: 3px solid transparent; }
+        .tab.active { color: #ffd700; border-bottom-color: #ffd700; }
+        
+        .content { padding: 24px; }
+        .table { width: 100%; border-collapse: collapse; background: #16213e; border-radius: 12px; overflow: hidden; }
+        .table th, .table td { padding: 16px; text-align: left; border-bottom: 1px solid #0f3460; }
+        .table th { background: #0f3460; color: #ffd700; }
+        .table tr:hover { background: #1a2744; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-danger { background: #ff6b6b; color: #fff; }
+        .btn-warning { background: #ffa502; color: #000; }
+        .btn-success { background: #2ed573; color: #000; }
+        
+        .section { display: none; }
+        .section.active { display: block; }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .table { font-size: 14px; }
+            .table th, .table td { padding: 12px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-screen" id="loginScreen">
+        <div class="login-box">
+            <h1>🔐 TooTube Admin</h1>
+            <div class="login-error" id="loginError"></div>
+            <input type="password" id="passwordInput" placeholder="Пароль адміністратора">
+            <button onclick="login()">Увійти</button>
+        </div>
+    </div>
+
+    <div class="admin-panel" id="adminPanel">
+        <div class="header">
+            <h1>🎬 TooTube Admin</h1>
+            <button onclick="logout()">Вийти</button>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showSection('users')">Користувачі</button>
+            <button class="tab" onclick="showSection('videos')">Відео</button>
+            <button class="tab" onclick="showSection('comments')">Коментарі</button>
+        </div>
+
+        <div class="content">
+            <div class="section active" id="usersSection"></div>
+            <div class="section" id="videosSection"></div>
+            <div class="section" id="commentsSection"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.origin + '/api';
+        let adminPassword = '';
+
+        async function login() {
+            const password = document.getElementById('passwordInput').value;
+            const res = await fetch(API + '/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const result = await res.json();
+            if (result.success) {
+                adminPassword = password;
+                sessionStorage.setItem('adminPwd', password);
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminPanel').classList.add('active');
+                loadData();
+            } else {
+                document.getElementById('loginError').textContent = 'Невірний пароль';
+            }
+        }
+
+        function logout() {
+            adminPassword = '';
+            sessionStorage.removeItem('adminPwd');
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('adminPanel').classList.remove('active');
+        }
+
+        async function loadData() {
+            await loadStats();
+            await loadUsers();
+            await loadVideos();
+            await loadComments();
+        }
+
+        async function loadStats() {
+            const res = await fetch(API + '/admin/stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword })
+            });
+            const stats = await res.json();
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card"><span class="material-icons icon">people</span><div class="value">${stats.users}</div><div class="label">Користувачів</div></div>
+                <div class="stat-card"><span class="material-icons icon">video_library</span><div class="value">${stats.videos}</div><div class="label">Відео</div></div>
+                <div class="stat-card"><span class="material-icons icon">comment</span><div class="value">${stats.comments}</div><div class="label">Коментарів</div></div>
+                <div class="stat-card"><span class="material-icons icon">visibility</span><div class="value">${stats.views}</div><div class="label">Переглядів</div></div>
+            `;
+        }
+
+        async function loadUsers() {
+            const res = await fetch(API + '/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword })
+            });
+            const users = await res.json();
+            document.getElementById('usersSection').innerHTML = `
+                <table class="table">
+                    <tr><th>Нікнейм</th><th>Підписники</th><th>Статус</th><th>Дії</th></tr>
+                    ${users.map(u => `
+                        <tr>
+                            <td>${u.nickname}</td>
+                            <td>${u.subscriberCount}</td>
+                            <td>${u.banned ? '🚫 Забанений' : '✅ Активний'}</td>
+                            <td>
+                                <button class="btn ${u.banned ? 'btn-success' : 'btn-warning'}" onclick="banUser('${u.id}')">${u.banned ? 'Розбанити' : 'Забанити'}</button>
+                                <button class="btn btn-danger" onclick="deleteUser('${u.id}')">Видалити</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function loadVideos() {
+            const res = await fetch(API + '/admin/videos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword })
+            });
+            const videos = await res.json();
+            document.getElementById('videosSection').innerHTML = `
+                <table class="table">
+                    <tr><th>Назва</th><th>Автор</th><th>Перегляди</th><th>Лайки</th><th>Дії</th></tr>
+                    ${videos.map(v => `
+                        <tr>
+                            <td>${v.title}</td>
+                            <td>${v.authorName}</td>
+                            <td>${v.views}</td>
+                            <td>${v.likes}</td>
+                            <td><button class="btn btn-danger" onclick="deleteVideo('${v.id}')">Видалити</button></td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function loadComments() {
+            const res = await fetch(API + '/admin/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword })
+            });
+            const comments = await res.json();
+            document.getElementById('commentsSection').innerHTML = `
+                <table class="table">
+                    <tr><th>Текст</th><th>Автор</th><th>Дії</th></tr>
+                    ${comments.map(c => `
+                        <tr>
+                            <td>${c.text.substring(0, 100)}${c.text.length > 100 ? '...' : ''}</td>
+                            <td>${c.authorName}</td>
+                            <td><button class="btn btn-danger" onclick="deleteComment('${c.id}')">Видалити</button></td>
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        async function banUser(userId) {
+            await fetch(API + '/admin/ban', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword, userId })
+            });
+            loadUsers();
+            loadStats();
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Видалити користувача та всі його відео?')) return;
+            await fetch(API + '/admin/deleteUser', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword, userId })
+            });
+            loadData();
+        }
+
+        async function deleteVideo(videoId) {
+            if (!confirm('Видалити це відео?')) return;
+            await fetch(API + '/admin/deleteVideo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword, videoId })
+            });
+            loadData();
+        }
+
+        async function deleteComment(commentId) {
+            if (!confirm('Видалити цей коментар?')) return;
+            await fetch(API + '/admin/deleteComment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword, commentId })
+            });
+            loadComments();
+            loadStats();
+        }
+
+        function showSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(name + 'Section').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Auto-login if password saved
+        const savedPwd = sessionStorage.getItem('adminPwd');
+        if (savedPwd) {
+            document.getElementById('passwordInput').value = savedPwd;
+            login();
+        }
+
+        // Enter key to login
+        document.getElementById('passwordInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>
