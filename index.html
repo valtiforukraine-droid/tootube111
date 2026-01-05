@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TooTube</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #FFD700;
+            --primary-dark: #E6C200;
+            --bg: #ffffff;
+            --bg-secondary: #f9f9f9;
+            --text: #0f0f0f;
+            --text-secondary: #606060;
+            --border: #e5e5e5;
+            --card-bg: #ffffff;
+        }
+        .dark {
+            --bg: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --text: #ffffff;
+            --text-secondary: #aaaaaa;
+            --border: #303030;
+            --card-bg: #1a1a1a;
+        }
+        body { font-family: 'Roboto', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 70px; }
+        .material-icons { font-size: 24px; vertical-align: middle; }
+</style>
+</head>
+<body>
+    <header class="header" id="header"></header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main" id="mainContent"></main>
+    <nav class="mobile-nav" id="mobileNav"></nav>
+    <div class="modal" id="authModal"></div>
+</body>
+</html>
+
+<style>
+    /* Header */
+    .header {
+        position: fixed; top: 0; left: 0; right: 0; height: 56px;
+        background: var(--bg); border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; padding: 0 12px; z-index: 1000; gap: 8px;
+    }
+    .logo { display: flex; align-items: center; gap: 4px; font-size: 18px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+    .logo-icon { width: 32px; height: 32px; background: var(--primary); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .search-box { flex: 1; display: flex; max-width: 500px; }
+    .search-box input { flex: 1; height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 18px 0 0 18px; background: var(--bg); color: var(--text); font-size: 14px; outline: none; min-width: 0; }
+    .search-box button { width: 44px; height: 36px; border: 1px solid var(--border); border-left: none; border-radius: 0 18px 18px 0; background: var(--bg-secondary); cursor: pointer; flex-shrink: 0; }
+    .header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    #authButtons { display: flex; align-items: center; gap: 8px; }
+    
+    /* Buttons */
+    .btn { padding: 8px 16px; border: none; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .btn-primary { background: var(--primary); color: #000; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--bg-secondary); color: var(--text); border: 1px solid var(--border); }
+    .btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 50%; background: transparent; border: none; cursor: pointer; color: var(--text); display: flex; align-items: center; justify-content: center; }
+    .btn-icon:hover { background: var(--bg-secondary); }
+    
+    /* Avatar */
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px; color: #000; cursor: pointer; overflow: hidden; flex-shrink: 0; }
+    .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    
+    /* Sidebar - Desktop */
+    .sidebar { position: fixed; top: 56px; left: 0; width: 200px; height: calc(100vh - 56px); background: var(--bg); border-right: 1px solid var(--border); padding: 8px; overflow-y: auto; z-index: 100; }
+    .nav { display: flex; flex-direction: column; gap: 2px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; color: var(--text); cursor: pointer; font-size: 14px; }
+    .nav-item:hover { background: var(--bg-secondary); }
+    .nav-item.active { background: var(--bg-secondary); font-weight: 500; }
+    .nav hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+    
+    /* Main Content */
+    .main { margin-left: 200px; margin-top: 56px; padding: 16px; min-height: calc(100vh - 56px); }
+    
+    /* Mobile Navigation */
+    .mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 56px; background: var(--bg); border-top: 1px solid var(--border); z-index: 1000; }
+    .mobile-nav-inner { display: flex; height: 100%; }
+    .mobile-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text-secondary); cursor: pointer; font-size: 10px; }
+    .mobile-nav-item.active { color: var(--text); }
+    .mobile-nav-item .material-icons { font-size: 22px; }
+</style>
+
+<style>
+    /* Video Grid */
+    .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .video-card { cursor: pointer; border-radius: 12px; overflow: hidden; background: var(--card-bg); transition: transform 0.2s; }
+    .video-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .video-thumb { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; display: block; }
+    .video-thumb-placeholder { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--primary) 0%, #ff9500 100%); display: flex; align-items: center; justify-content: center; }
+    .video-info { padding: 12px; display: flex; gap: 12px; align-items: flex-start; }
+    .video-info-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px; color: #000; flex-shrink: 0; overflow: hidden; margin-top: 2px; }
+    .video-info-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .video-info-text { flex: 1; min-width: 0; }
+    .video-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .video-meta { font-size: 12px; color: var(--text-secondary); }
+    
+    /* Shorts Grid */
+    .shorts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .short-card { cursor: pointer; border-radius: 12px; overflow: hidden; background: var(--card-bg); }
+    .short-thumb { width: 100%; aspect-ratio: 9/16; background: #000; object-fit: cover; display: block; }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
+    .modal.show { display: flex; }
+    .modal-content { background: var(--card-bg); border-radius: 12px; padding: 24px; width: 100%; max-width: 360px; position: relative; }
+    .modal-close { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; color: var(--text); padding: 8px; }
+    .modal-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab { flex: 1; padding: 10px; border: none; background: var(--bg-secondary); border-radius: 8px; cursor: pointer; color: var(--text); font-size: 14px; }
+    .tab.active { background: var(--primary); color: #000; }
+    .form-input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 16px; }
+    .error { color: #ff4444; font-size: 12px; margin-bottom: 12px; }
+    
+    /* Dropdown */
+    .user-dropdown { position: relative; }
+    .dropdown-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; min-width: 200px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1001; overflow: hidden; }
+    .dropdown-menu.show { display: block; }
+    .dropdown-header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+    .dropdown-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 500; color: #000; overflow: hidden; flex-shrink: 0; }
+    .dropdown-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .dropdown-name { font-weight: 500; font-size: 14px; }
+    .dropdown-item { display: flex; align-items: center; gap: 12px; padding: 12px; cursor: pointer; color: var(--text); font-size: 14px; }
+    .dropdown-item:hover { background: var(--bg-secondary); }
+    .dropdown-item.danger { color: #ff4444; }
+    .dropdown-item .material-icons { font-size: 20px; }
+</style>
+
+<style>
+    /* Page Elements */
+    .page-title { font-size: 18px; font-weight: 500; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tabs .tab { flex: none; padding: 8px 16px; white-space: nowrap; }
+    
+    /* Watch Page */
+    .watch-container { display: grid; grid-template-columns: 1fr 350px; gap: 24px; }
+    .video-player { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
+    .video-player.short { aspect-ratio: 9/16; max-width: 350px; margin: 0 auto; }
+    .watch-title { font-size: 16px; font-weight: 500; margin: 12px 0 8px; line-height: 1.4; }
+    .watch-stats { color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; }
+    .watch-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .action-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 20px; background: var(--bg-secondary); border: none; cursor: pointer; color: var(--text); font-size: 13px; }
+    .action-btn:hover { background: var(--border); }
+    .action-btn.active { background: var(--primary); color: #000; }
+    
+    /* Channel Info */
+    .channel-info { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .channel-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: #000; overflow: hidden; flex-shrink: 0; }
+    .channel-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .channel-name { font-weight: 500; font-size: 14px; }
+    .channel-subs { font-size: 12px; color: var(--text-secondary); }
+    .subscribe-btn { margin-left: auto; padding: 8px 16px; border-radius: 20px; border: none; background: var(--text); color: var(--bg); font-weight: 500; cursor: pointer; font-size: 13px; }
+    .subscribe-btn.subscribed { background: var(--bg-secondary); color: var(--text); }
+    .video-description { margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 12px; font-size: 13px; line-height: 1.5; }
+    
+    /* Comments */
+    .comments-section { margin-top: 20px; }
+    .comments-title { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+    .comment-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .comment-form input { flex: 1; min-width: 200px; padding: 10px; border: none; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); outline: none; font-size: 14px; }
+    .comment { display: flex; gap: 10px; margin-bottom: 14px; }
+    .comment-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 12px; color: #000; flex-shrink: 0; overflow: hidden; }
+    .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .comment-content { flex: 1; min-width: 0; }
+    .comment-author { font-size: 12px; font-weight: 500; }
+    .comment-date { font-size: 11px; color: var(--text-secondary); margin-left: 6px; }
+    .comment-text { font-size: 13px; margin: 4px 0; line-height: 1.4; }
+    .comment-like { display: flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 11px; padding: 4px 0; }
+    .comment-like:hover { color: var(--text); }
+    .comment-like.active { color: var(--primary); }
+    .comment-like .material-icons { font-size: 14px; }
+    
+    /* Sidebar Videos */
+    .sidebar-videos { display: flex; flex-direction: column; gap: 10px; }
+    .sidebar-video { display: flex; gap: 8px; cursor: pointer; }
+    .sidebar-video-thumb { width: 140px; aspect-ratio: 16/9; border-radius: 8px; background: #000; object-fit: cover; flex-shrink: 0; }
+    .sidebar-video-info { flex: 1; min-width: 0; }
+    .sidebar-video-title { font-size: 13px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .sidebar-video-meta { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+</style>
+
+<style>
+    /* Upload Form */
+    .upload-form { max-width: 600px; margin: 0 auto; }
+    .upload-area { border: 2px dashed var(--border); border-radius: 12px; padding: 32px 16px; text-align: center; margin-bottom: 20px; cursor: pointer; }
+    .upload-area:hover { border-color: var(--primary); }
+    .upload-area.has-file { border-color: var(--primary); background: var(--bg-secondary); }
+    .upload-icon { margin-bottom: 12px; color: var(--text-secondary); }
+    .upload-icon .material-icons { font-size: 48px; }
+    .upload-text { color: var(--text-secondary); font-size: 14px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 14px; }
+    .form-group input, .form-group textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 16px; }
+    .form-group textarea { min-height: 80px; resize: vertical; font-family: inherit; }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .checkbox-group input { width: 18px; height: 18px; }
+    .video-preview { max-width: 100%; max-height: 200px; border-radius: 8px; margin-top: 12px; }
+    .progress-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; margin-top: 12px; overflow: hidden; display: none; }
+    .progress-bar.show { display: block; }
+    .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+    .limit-info { background: var(--bg-secondary); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+    .limit-info .material-icons { font-size: 18px; }
+    
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .analytics-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .analytics-table th, .analytics-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    .analytics-table th { font-weight: 500; color: var(--text-secondary); }
+    
+    /* My Videos */
+    .my-video-card { display: flex; gap: 12px; padding: 12px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+    .my-video-thumb { width: 140px; aspect-ratio: 16/9; border-radius: 8px; background: #000; object-fit: cover; cursor: pointer; flex-shrink: 0; }
+    .my-video-info { flex: 1; min-width: 150px; }
+    .my-video-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    .my-video-stats { font-size: 12px; color: var(--text-secondary); }
+    .delete-btn { background: #ff4444; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    .delete-btn:hover { background: #cc0000; }
+    .delete-btn .material-icons { font-size: 16px; }
+    
+    /* Empty State */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state-icon { margin-bottom: 12px; }
+    .empty-state-icon .material-icons { font-size: 48px; }
+    .empty-state p { font-size: 14px; }
+</style>
+
+<style>
+    /* Profile */
+    .profile-container { max-width: 600px; margin: 0 auto; }
+    .profile-header { display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }
+    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 500; color: #000; overflow: hidden; cursor: pointer; flex-shrink: 0; }
+    .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-info { flex: 1; min-width: 0; }
+    .profile-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .profile-stats { color: var(--text-secondary); font-size: 13px; }
+    
+    /* Settings */
+    .settings-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .settings-title { font-size: 16px; font-weight: 500; margin-bottom: 12px; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-row span { font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle-switch { width: 44px; height: 22px; background: var(--border); border-radius: 11px; position: relative; cursor: pointer; flex-shrink: 0; }
+    .toggle-switch.active { background: var(--primary); }
+    .toggle-switch::after { content: ''; position: absolute; width: 18px; height: 18px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: left 0.2s; }
+    .toggle-switch.active::after { left: 24px; }
+    
+    /* Mobile Responsive */
+    @media (max-width: 900px) {
+        .watch-container { grid-template-columns: 1fr; }
+        .sidebar-videos { display: none; }
+    }
+    
+    @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main { margin-left: 0; padding: 12px; padding-bottom: 70px; }
+        .mobile-nav { display: block; }
+        body { padding-bottom: 56px; }
+        
+        .header { padding: 0 8px; gap: 6px; }
+        .logo span { display: none; }
+        .search-box { max-width: none; }
+        .search-box input { height: 34px; padding: 0 10px; font-size: 14px; }
+        .search-box button { width: 40px; height: 34px; }
+        .btn span.btn-text { display: none; }
+        .btn { padding: 8px 10px; }
+        
+        .video-grid { grid-template-columns: 1fr; gap: 12px; }
+        .video-card { border-radius: 0; margin: 0 -12px; }
+        .video-thumb { border-radius: 0; }
+        .video-info { padding: 10px 12px; }
+        
+        .shorts-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        
+        .page-title { font-size: 16px; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .stat-value { font-size: 20px; }
+        
+        .my-video-card { flex-direction: column; align-items: stretch; }
+        .my-video-thumb { width: 100%; }
+        .my-video-info { min-width: 0; }
+        
+        .profile-header { flex-direction: column; text-align: center; }
+        .profile-avatar { width: 100px; height: 100px; font-size: 40px; }
+        
+        .watch-title { font-size: 15px; }
+        .action-btn { padding: 6px 10px; font-size: 12px; }
+        .channel-info { gap: 8px; }
+        .subscribe-btn { width: 100%; margin-left: 0; margin-top: 8px; }
+        
+        .upload-area { padding: 24px 12px; }
+        .upload-icon .material-icons { font-size: 40px; }
+        
+        .modal-content { padding: 20px 16px; margin: 16px; }
+        
+        .dropdown-menu { position: fixed; top: auto; bottom: 0; left: 0; right: 0; margin: 0; border-radius: 16px 16px 0 0; min-width: auto; max-height: 70vh; overflow-y: auto; }
+    }
+    
+    @media (max-width: 400px) {
+        .shorts-grid { grid-template-columns: repeat(2, 1fr); }
+        .video-info-avatar { width: 32px; height: 32px; }
+    }
+</style>
+
+<script>
+const API = 'http://localhost:3000/api';
+let data = { videos: [], users: [], comments: [], subscriptions: [] };
+let state = { 
+    user: JSON.parse(localStorage.getItem('tootube_user') || 'null'), 
+    darkMode: localStorage.getItem('tootube_dark') === 'true', 
+    authMode: 'login', 
+    currentPage: 'home', 
+    currentVideoId: null 
+};
+
+async function loadData() {
+    try {
+        const res = await fetch(API + '/data');
+        data = await res.json();
+    } catch(e) { console.error('Server not running'); }
+}
+
+function initUI() {
+    // Header
+    document.getElementById('header').innerHTML = `
+        <div class="logo" onclick="navigate('home')">
+            <div class="logo-icon"><span class="material-icons">play_arrow</span></div>
+            <span>TooTube</span>
+        </div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Пошук" onkeypress="if(event.key==='Enter')doSearch()">
+            <button onclick="doSearch()"><span class="material-icons">search</span></button>
+        </div>
+        <div class="header-actions">
+            <button class="btn-icon" onclick="toggleDarkMode()" title="Темний режим"><span class="material-icons">dark_mode</span></button>
+            <div id="authButtons"></div>
+        </div>
+    `;
+    
+    // Sidebar
+    document.getElementById('sidebar').innerHTML = `
+        <nav class="nav">
+            <a class="nav-item active" onclick="navigate('home')" data-page="home"><span class="material-icons">home</span> Головна</a>
+            <a class="nav-item" onclick="navigate('shorts')" data-page="shorts"><span class="material-icons">bolt</span> Shorts</a>
+            <a class="nav-item" onclick="navigate('subscriptions')" data-page="subscriptions"><span class="material-icons">subscriptions</span> Підписки</a>
+            <hr>
+            <a class="nav-item" onclick="navigate('my-videos')" data-page="my-videos"><span class="material-icons">video_library</span> Мої відео</a>
+            <a class="nav-item" onclick="navigate('analytics')" data-page="analytics"><span class="material-icons">analytics</span> Аналітика</a>
+            <a class="nav-item" onclick="navigate('upload')" data-page="upload"><span class="material-icons">add_circle</span> Завантажити</a>
+        </nav>
+    `;
+    
+    // Mobile Nav
+    document.getElementById('mobileNav').innerHTML = `
+        <div class="mobile-nav-inner">
+            <div class="mobile-nav-item active" onclick="navigate('home')" data-page="home"><span class="material-icons">home</span>Головна</div>
+            <div class="mobile-nav-item" onclick="navigate('shorts')" data-page="shorts"><span class="material-icons">bolt</span>Shorts</div>
+            <div class="mobile-nav-item" onclick="navigate('upload')" data-page="upload"><span class="material-icons">add_circle</span>Додати</div>
+            <div class="mobile-nav-item" onclick="navigate('subscriptions')" data-page="subscriptions"><span class="material-icons">subscriptions</span>Підписки</div>
+            <div class="mobile-nav-item" onclick="navigate('my-videos')" data-page="my-videos"><span class="material-icons">video_library</span>Бібліотека</div>
+        </div>
+    `;
+    
+    // Auth Modal
+    document.getElementById('authModal').innerHTML = `
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()"><span class="material-icons">close</span></button>
+            <div class="modal-tabs">
+                <button class="tab active" onclick="switchAuthTab('login')">Вхід</button>
+                <button class="tab" onclick="switchAuthTab('register')">Реєстрація</button>
+            </div>
+            <form id="authForm" onsubmit="handleAuth(event)">
+                <input type="text" class="form-input" id="authNickname" placeholder="Нікнейм" required minlength="3">
+                <input type="password" class="form-input" id="authPassword" placeholder="Пароль" required minlength="4">
+                <p class="error" id="authError"></p>
+                <button type="submit" class="btn btn-primary" style="width:100%">Увійти</button>
+            </form>
+        </div>
+    `;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (state.darkMode) document.body.classList.add('dark');
+    initUI();
+    await loadData();
+    updateAuthUI();
+    navigate('home');
+    
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.user-dropdown')) {
+            const d = document.querySelector('.dropdown-menu');
+            if (d) d.classList.remove('show');
+        }
+    });
+});
+
+function navigate(page, id = null) {
+    state.currentPage = page;
+    state.currentVideoId = id;
+    
+    // Update nav items
+    document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
+    });
+    
+    const pages = { 
+        home: renderHome, 
+        shorts: renderShorts, 
+        watch: () => renderWatch(id), 
+        upload: renderUpload, 
+        subscriptions: renderSubscriptions, 
+        analytics: renderAnalytics, 
+        'my-videos': renderMyVideos, 
+        search: () => renderSearch(id), 
+        profile: renderProfile, 
+        settings: renderSettings 
+    };
+    (pages[page] || renderHome)();
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+</script>
+
+<script>
+function getAuthorAvatar(authorId, authorName) {
+    const author = data.users.find(u => u.id === authorId);
+    if (author && author.avatar) {
+        return `<img src="${author.avatar}" alt="">`;
+    }
+    return authorName ? authorName[0].toUpperCase() : '?';
+}
+
+function updateAuthUI() {
+    const c = document.getElementById('authButtons');
+    if (state.user) {
+        const u = data.users.find(x => x.id === state.user.id) || state.user;
+        const av = u.avatar ? `<img src="${u.avatar}" alt="">` : state.user.nickname[0].toUpperCase();
+        c.innerHTML = `
+            <button class="btn btn-primary" onclick="navigate('upload')"><span class="material-icons" style="font-size:18px">add</span><span class="btn-text"> Завантажити</span></button>
+            <div class="user-dropdown">
+                <div class="user-avatar" onclick="event.stopPropagation();document.getElementById('userDropdown').classList.toggle('show')">${av}</div>
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-header">
+                        <div class="dropdown-avatar">${av}</div>
+                        <div class="dropdown-name">${state.user.nickname}</div>
+                    </div>
+                    <div class="dropdown-item" onclick="navigate('profile');document.getElementById('userDropdown').classList.remove('show')"><span class="material-icons">person</span> Мій профіль</div>
+                    <div class="dropdown-item" onclick="navigate('my-videos');document.getElementById('userDropdown').classList.remove('show')"><span class="material-icons">video_library</span> Мої відео</div>
+                    <div class="dropdown-item" onclick="navigate('analytics');document.getElementById('userDropdown').classList.remove('show')"><span class="material-icons">analytics</span> Аналітика</div>
+                    <div class="dropdown-item" onclick="navigate('settings');document.getElementById('userDropdown').classList.remove('show')"><span class="material-icons">settings</span> Налаштування</div>
+                    <div class="dropdown-item danger" onclick="logout()"><span class="material-icons">logout</span> Вийти</div>
+                </div>
+            </div>`;
+    } else {
+        c.innerHTML = `<button class="btn btn-primary" onclick="showAuthModal()">Увійти</button>`;
+    }
+}
+
+function showAuthModal() { document.getElementById('authModal').classList.add('show'); }
+function closeModal() { document.getElementById('authModal').classList.remove('show'); document.getElementById('authError').textContent = ''; }
+
+function switchAuthTab(mode) {
+    state.authMode = mode;
+    document.querySelectorAll('.modal-tabs .tab').forEach((t, i) => t.classList.toggle('active', (i === 0 && mode === 'login') || (i === 1 && mode === 'register')));
+    document.querySelector('#authForm button[type="submit"]').textContent = mode === 'login' ? 'Увійти' : 'Зареєструватися';
+}
+
+async function handleAuth(e) {
+    e.preventDefault();
+    const nickname = document.getElementById('authNickname').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const err = document.getElementById('authError');
+    if (nickname.length < 3) { err.textContent = 'Нікнейм мінімум 3 символи'; return; }
+    if (password.length < 4) { err.textContent = 'Пароль мінімум 4 символи'; return; }
+    try {
+        const res = await fetch(API + (state.authMode === 'register' ? '/register' : '/login'), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nickname, password })
+        });
+        const result = await res.json();
+        if (result.error) { err.textContent = result.error; return; }
+        state.user = result.user;
+        localStorage.setItem('tootube_user', JSON.stringify(state.user));
+        await loadData();
+        updateAuthUI();
+        closeModal();
+        navigate(state.currentPage);
+    } catch(e) { err.textContent = 'Помилка сервера'; }
+}
+
+function logout() { 
+    state.user = null; 
+    localStorage.removeItem('tootube_user'); 
+    document.getElementById('userDropdown').classList.remove('show');
+    updateAuthUI(); 
+    navigate('home'); 
+}
+
+function toggleDarkMode() { 
+    state.darkMode = !state.darkMode; 
+    document.body.classList.toggle('dark', state.darkMode); 
+    localStorage.setItem('tootube_dark', state.darkMode); 
+}
+
+function doSearch() { 
+    const q = document.getElementById('searchInput').value.trim(); 
+    if (q) navigate('search', q); 
+}
+
+function formatDate(d) {
+    const diff = Date.now() - new Date(d);
+    const mins = Math.floor(diff / 60000), hrs = Math.floor(diff / 3600000), days = Math.floor(diff / 86400000);
+    if (mins < 1) return 'щойно';
+    if (mins < 60) return mins + ' хв тому';
+    if (hrs < 24) return hrs + ' год тому';
+    if (days < 7) return days + ' дн тому';
+    return new Date(d).toLocaleDateString('uk');
+}
+
+function formatViews(n) { 
+    return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n.toString(); 
+}
+
+function formatSize(b) { 
+    return b >= 1024*1024*1024 ? (b/(1024*1024*1024)).toFixed(2)+' GB' : b >= 1024*1024 ? (b/(1024*1024)).toFixed(2)+' MB' : b >= 1024 ? (b/1024).toFixed(2)+' KB' : b+' B'; 
+}
+</script>
+
+<script>
+function videoCard(v) {
+    const authorAvatar = getAuthorAvatar(v.authorId, v.authorName);
+    return `<div class="video-card">
+        <div class="video-thumb-wrap" onclick="navigate('watch','${v.id}')">
+            ${v.videoUrl ? `<video class="video-thumb" src="${v.videoUrl}" muted preload="metadata"></video>` : `<div class="video-thumb-placeholder"><span class="material-icons" style="font-size:48px">play_circle</span></div>`}
+        </div>
+        <div class="video-info">
+            <div class="video-info-avatar" onclick="event.stopPropagation();navigate('channel','${v.authorId}')" style="cursor:pointer">${authorAvatar}</div>
+            <div class="video-info-text">
+                <div class="video-title" onclick="navigate('watch','${v.id}')" style="cursor:pointer">${v.title}</div>
+                <div class="video-meta video-author" onclick="event.stopPropagation();navigate('channel','${v.authorId}')">${v.authorName}</div>
+                <div class="video-meta">${formatViews(v.views)} переглядів • ${formatDate(v.createdAt)}</div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function shortCard(v) {
+    return `<div class="short-card" onclick="navigate('watch','${v.id}')">
+        ${v.videoUrl ? `<video class="short-thumb" src="${v.videoUrl}" muted preload="metadata"></video>` : `<div class="short-thumb" style="background:linear-gradient(135deg,#ff6b6b,var(--primary));display:flex;align-items:center;justify-content:center"><span class="material-icons" style="font-size:36px">bolt</span></div>`}
+        <div class="video-info" style="padding:8px">
+            <div class="video-title">${v.title}</div>
+            <div class="video-meta">${formatViews(v.views)} переглядів</div>
+        </div>
+    </div>`;
+}
+
+function renderHome() {
+    const regular = data.videos.filter(v => !v.isShort).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const shorts = data.videos.filter(v => v.isShort).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('all',this)">Усі відео</button>
+            <button class="tab" onclick="showTab('shorts',this)">Shorts</button>
+        </div>
+        <div id="tabAll" class="video-grid">${regular.length ? regular.map(videoCard).join('') : `
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-icons" style="font-size:48px">videocam_off</span></div>
+                <p>Поки немає відео</p>
+                <button class="btn btn-primary" style="margin-top:12px" onclick="navigate('upload')"><span class="material-icons" style="font-size:18px">add</span> Завантажити</button>
+            </div>`}
+        </div>
+        <div id="tabShorts" class="shorts-grid" style="display:none">${shorts.length ? shorts.map(shortCard).join('') : '<div class="empty-state"><p>Поки немає Shorts</p></div>'}</div>
+    `;
+}
+
+function showTab(t, btn) {
+    document.querySelectorAll('.tabs .tab').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tabAll').style.display = t === 'all' ? 'grid' : 'none';
+    document.getElementById('tabShorts').style.display = t === 'shorts' ? 'grid' : 'none';
+}
+
+function renderShorts() {
+    const shorts = data.videos.filter(v => v.isShort).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    document.getElementById('mainContent').innerHTML = `
+        <h1 class="page-title"><span class="material-icons">bolt</span> Shorts</h1>
+        <div class="shorts-grid">${shorts.length ? shorts.map(shortCard).join('') : '<div class="empty-state"><p>Поки немає Shorts</p></div>'}</div>
+    `;
+}
+
+function renderSearch(query) {
+    const q = query.toLowerCase();
+    const results = data.videos.filter(v => v.title.toLowerCase().includes(q) || v.authorName.toLowerCase().includes(q)).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    document.getElementById('mainContent').innerHTML = `
+        <h1 class="page-title"><span class="material-icons">search</span> "${query}"</h1>
+        <div class="video-grid">${results.length ? results.map(videoCard).join('') : '<div class="empty-state"><p>Нічого не знайдено</p></div>'}</div>
+    `;
+}
+</script>
+
+<script>
+async function renderWatch(videoId, skipView = false) {
+    const video = data.videos.find(v => v.id === videoId);
+    if (!video) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Відео не знайдено</p></div>'; 
+        return; 
+    }
+    
+    // Only count view on first load, not on like/comment
+    if (!skipView) {
+        await fetch(API + '/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoId }) });
+        await loadData();
+    }
+    
+    const comments = data.comments.filter(c => c.videoId === videoId).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const recommended = data.videos.filter(v => v.id !== videoId).slice(0, 5);
+    const author = data.users.find(u => u.id === video.authorId) || { subscriberCount: 0 };
+    const isSubscribed = state.user && data.subscriptions.some(s => s.subscriberId === state.user.id && s.channelId === video.authorId);
+    const userLiked = state.user && video.likes.includes(state.user.id);
+    const userDisliked = state.user && video.dislikes.includes(state.user.id);
+    const authorAvatar = author.avatar ? `<img src="${author.avatar}" alt="">` : (video.authorName ? video.authorName[0].toUpperCase() : '?');
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="watch-container">
+            <div>
+                ${video.videoUrl ? `<video class="video-player ${video.isShort ? 'short' : ''}" src="${video.videoUrl}" controls autoplay playsinline></video>` : `<div class="video-player" style="display:flex;align-items:center;justify-content:center;color:white"><span class="material-icons" style="font-size:64px">videocam_off</span></div>`}
+                <h1 class="watch-title">${video.title}</h1>
+                <div class="watch-stats">${formatViews(video.views)} переглядів • ${formatDate(video.createdAt)}</div>
+                <div class="watch-actions">
+                    <button class="action-btn ${userLiked ? 'active' : ''}" onclick="likeVideo('${video.id}','like')"><span class="material-icons">thumb_up</span> ${video.likes.length}</button>
+                    <button class="action-btn ${userDisliked ? 'active' : ''}" onclick="likeVideo('${video.id}','dislike')"><span class="material-icons">thumb_down</span> ${video.dislikes.length}</button>
+                </div>
+                <div class="channel-info">
+                    <div class="channel-avatar" onclick="navigate('channel','${video.authorId}')" style="cursor:pointer">${authorAvatar}</div>
+                    <div style="flex:1;min-width:0;cursor:pointer" onclick="navigate('channel','${video.authorId}')">
+                        <div class="channel-name">${video.authorName}</div>
+                        <div class="channel-subs">${author.subscriberCount || 0} підписників</div>
+                    </div>
+                    ${state.user && state.user.id !== video.authorId ? `<button class="subscribe-btn ${isSubscribed ? 'subscribed' : ''}" onclick="toggleSubscribe('${video.authorId}')">${isSubscribed ? 'Підписано' : 'Підписатися'}</button>` : ''}
+                </div>
+                ${video.description ? `<div class="video-description">${video.description}</div>` : ''}
+                <div class="comments-section">
+                    <h3 class="comments-title">${comments.length} коментарів</h3>
+                    ${state.user ? `<div class="comment-form"><input type="text" id="commentInput" placeholder="Додати коментар..."><button class="btn btn-primary" onclick="addComment('${video.id}')">Надіслати</button></div>` : '<p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px">Увійдіть, щоб коментувати</p>'}
+                    <div>${comments.map(c => {
+                        const commentAvatar = getAuthorAvatar(c.authorId, c.authorName);
+                        const liked = state.user && c.likes.includes(state.user.id);
+                        return `<div class="comment">
+                            <div class="comment-avatar">${commentAvatar}</div>
+                            <div class="comment-content">
+                                <span class="comment-author">${c.authorName}</span>
+                                <span class="comment-date">${formatDate(c.createdAt)}</span>
+                                <p class="comment-text">${c.text}</p>
+                                <button class="comment-like ${liked ? 'active' : ''}" onclick="likeComment('${c.id}')">
+                                    <span class="material-icons">thumb_up</span> ${c.likes.length}
+                                </button>
+                            </div>
+                        </div>`;
+                    }).join('')}</div>
+                </div>
+            </div>
+            <div class="sidebar-videos">
+                <h3 style="margin-bottom:12px;font-size:14px">Рекомендовані</h3>
+                ${recommended.length ? recommended.map(v => `
+                    <div class="sidebar-video" onclick="navigate('watch','${v.id}')">
+                        ${v.videoUrl ? `<video class="sidebar-video-thumb" src="${v.videoUrl}" muted preload="metadata"></video>` : `<div class="sidebar-video-thumb" style="background:var(--primary);display:flex;align-items:center;justify-content:center"><span class="material-icons">play_circle</span></div>`}
+                        <div class="sidebar-video-info">
+                            <div class="sidebar-video-title">${v.title}</div>
+                            <div class="sidebar-video-meta">${v.authorName}</div>
+                            <div class="sidebar-video-meta">${formatViews(v.views)} переглядів</div>
+                        </div>
+                    </div>
+                `).join('') : '<p style="color:var(--text-secondary);font-size:13px">Немає рекомендацій</p>'}
+            </div>
+        </div>
+    `;
+}
+
+async function likeVideo(videoId, action) {
+    if (!state.user) return showAuthModal();
+    
+    // Check if user already liked/disliked - toggle off if same action
+    const video = data.videos.find(v => v.id === videoId);
+    const alreadyLiked = video && video.likes.includes(state.user.id);
+    const alreadyDisliked = video && video.dislikes.includes(state.user.id);
+    
+    let newAction = action;
+    if ((action === 'like' && alreadyLiked) || (action === 'dislike' && alreadyDisliked)) {
+        newAction = 'none'; // Remove like/dislike
+    }
+    
+    await fetch(API + '/like', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoId, userId: state.user.id, action: newAction }) });
+    await loadData();
+    renderWatch(videoId, true); // skipView = true
+}
+
+async function toggleSubscribe(channelId) {
+    if (!state.user) return showAuthModal();
+    await fetch(API + '/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscriberId: state.user.id, channelId }) });
+    await loadData();
+    renderWatch(state.currentVideoId, true); // skipView = true
+}
+
+async function addComment(videoId) {
+    const input = document.getElementById('commentInput');
+    const text = input.value.trim();
+    if (!text || !state.user) return;
+    await fetch(API + '/comment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoId, userId: state.user.id, userName: state.user.nickname, text }) });
+    await loadData();
+    renderWatch(videoId, true); // skipView = true
+}
+
+async function likeComment(commentId) {
+    if (!state.user) return showAuthModal();
+    await fetch(API + '/comment/like', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId, userId: state.user.id }) });
+    await loadData();
+    renderWatch(state.currentVideoId, true); // skipView = true
+}
+</script>
+
+<script>
+let selectedFile = null;
+
+function renderUpload() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть, щоб завантажувати відео</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    
+    const today = new Date().toDateString();
+    const todayVideos = data.videos.filter(v => v.authorId === state.user.id && new Date(v.createdAt).toDateString() === today);
+    if (todayVideos.length >= 1) {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-icons" style="font-size:48px">schedule</span></div>
+                <p>Ви вже завантажили відео сьогодні</p>
+                <p style="font-size:12px;margin-top:8px">Ліміт: 1 відео на день</p>
+                <button class="btn btn-primary" style="margin-top:12px" onclick="navigate('my-videos')">Мої відео</button>
+            </div>`;
+        return;
+    }
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="upload-form">
+            <h1 class="page-title"><span class="material-icons">add_circle</span> Завантажити</h1>
+            <div class="limit-info"><span class="material-icons">info</span> Ліміт: 1 відео/день • Макс: 500 МБ</div>
+            <form onsubmit="uploadVideo(event)">
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('videoFile').click()">
+                    <div class="upload-icon"><span class="material-icons">cloud_upload</span></div>
+                    <p class="upload-text" id="uploadText">Натисніть, щоб вибрати відео</p>
+                    <input type="file" id="videoFile" accept="video/*" hidden onchange="previewUpload(this)">
+                </div>
+                <video id="videoPreview" class="video-preview" style="display:none" controls playsinline></video>
+                <div class="form-group"><label>Назва *</label><input type="text" id="videoTitle" required placeholder="Введіть назву"></div>
+                <div class="form-group"><label>Опис</label><textarea id="videoDescription" placeholder="Опис відео"></textarea></div>
+                <div class="form-group"><label class="checkbox-group"><input type="checkbox" id="isShort"> Це Short (вертикальне)</label></div>
+                <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+                <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;margin-top:12px" id="uploadBtn"><span class="material-icons" style="font-size:18px">upload</span> Завантажити</button>
+            </form>
+        </div>`;
+    selectedFile = null;
+}
+
+function previewUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 500 * 1024 * 1024) { 
+        alert('Файл занадто великий! Максимум 500 МБ\nВаш файл: ' + formatSize(file.size)); 
+        input.value = ''; 
+        return; 
+    }
+    selectedFile = file;
+    document.getElementById('uploadText').textContent = file.name + ' (' + formatSize(file.size) + ')';
+    document.getElementById('uploadArea').classList.add('has-file');
+    const preview = document.getElementById('videoPreview');
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+}
+
+async function uploadVideo(e) {
+    e.preventDefault();
+    const title = document.getElementById('videoTitle').value.trim();
+    const description = document.getElementById('videoDescription').value.trim();
+    const isShort = document.getElementById('isShort').checked;
+    
+    if (!title) { alert('Введіть назву'); return; }
+    if (!selectedFile) { alert('Виберіть відео файл'); return; }
+    
+    const formData = new FormData();
+    formData.append('video', selectedFile);
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('isShort', isShort);
+    formData.append('userId', state.user.id);
+    formData.append('userName', state.user.nickname);
+    
+    const btn = document.getElementById('uploadBtn');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size:18px">hourglass_empty</span> Завантаження...';
+    progressBar.classList.add('show');
+    
+    try {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) progressFill.style.width = (e.loaded / e.total * 100) + '%'; };
+        xhr.onload = async () => {
+            if (xhr.status === 200) {
+                alert('Відео успішно завантажено!');
+                await loadData();
+                navigate('home');
+            } else {
+                const res = JSON.parse(xhr.responseText);
+                alert(res.error || 'Помилка завантаження');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-icons" style="font-size:18px">upload</span> Завантажити';
+                progressBar.classList.remove('show');
+            }
+        };
+        xhr.onerror = () => { 
+            alert('Помилка мережі'); 
+            btn.disabled = false; 
+            btn.innerHTML = '<span class="material-icons" style="font-size:18px">upload</span> Завантажити'; 
+            progressBar.classList.remove('show');
+        };
+        xhr.open('POST', API + '/upload');
+        xhr.send(formData);
+    } catch(e) { 
+        alert('Помилка: ' + e.message); 
+        btn.disabled = false; 
+    }
+}
+</script>
+
+<script>
+function renderSubscriptions() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть, щоб бачити підписки</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    const channels = data.subscriptions.filter(s => s.subscriberId === state.user.id).map(s => s.channelId);
+    const subVideos = data.videos.filter(v => channels.includes(v.authorId)).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    document.getElementById('mainContent').innerHTML = `
+        <h1 class="page-title"><span class="material-icons">subscriptions</span> Підписки</h1>
+        <div class="video-grid">${subVideos.length ? subVideos.map(videoCard).join('') : '<div class="empty-state"><p>Ви ще ні на кого не підписані</p></div>'}</div>
+    `;
+}
+
+function renderMyVideos() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть, щоб бачити свої відео</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    const myVideos = data.videos.filter(v => v.authorId === state.user.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    document.getElementById('mainContent').innerHTML = `
+        <h1 class="page-title"><span class="material-icons">video_library</span> Мої відео</h1>
+        ${myVideos.length ? myVideos.map(v => `
+            <div class="my-video-card">
+                ${v.videoUrl ? `<video class="my-video-thumb" src="${v.videoUrl}" muted preload="metadata" onclick="navigate('watch','${v.id}')"></video>` : `<div class="my-video-thumb" style="background:var(--primary);display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="navigate('watch','${v.id}')"><span class="material-icons" style="font-size:32px">play_circle</span></div>`}
+                <div class="my-video-info">
+                    <div class="my-video-title">${v.title}</div>
+                    <div class="my-video-stats">${formatViews(v.views)} переглядів • ${v.likes.length} лайків • ${formatDate(v.createdAt)} ${v.isShort ? '• Short' : ''}</div>
+                </div>
+                <button class="delete-btn" onclick="deleteVideo('${v.id}')"><span class="material-icons">delete</span><span class="btn-text">Видалити</span></button>
+            </div>
+        `).join('') : '<div class="empty-state"><p>У вас ще немає відео</p><button class="btn btn-primary" style="margin-top:12px" onclick="navigate(\'upload\')">Завантажити</button></div>'}
+    `;
+}
+
+async function deleteVideo(videoId) {
+    if (!confirm('Видалити це відео?')) return;
+    await fetch(API + '/video/' + videoId, { method: 'DELETE' });
+    await loadData();
+    renderMyVideos();
+}
+
+function renderAnalytics() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть, щоб бачити аналітику</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    const user = data.users.find(u => u.id === state.user.id) || { subscriberCount: 0 };
+    const myVideos = data.videos.filter(v => v.authorId === state.user.id);
+    const totalViews = myVideos.reduce((s, v) => s + v.views, 0);
+    const totalLikes = myVideos.reduce((s, v) => s + v.likes.length, 0);
+    
+    document.getElementById('mainContent').innerHTML = `
+        <h1 class="page-title"><span class="material-icons">analytics</span> Аналітика</h1>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value">${myVideos.length}</div><div class="stat-label">Відео</div></div>
+            <div class="stat-card"><div class="stat-value">${formatViews(totalViews)}</div><div class="stat-label">Переглядів</div></div>
+            <div class="stat-card"><div class="stat-value">${totalLikes}</div><div class="stat-label">Лайків</div></div>
+            <div class="stat-card"><div class="stat-value">${user.subscriberCount || 0}</div><div class="stat-label">Підписників</div></div>
+        </div>
+        ${myVideos.length ? `
+            <h2 style="font-size:16px;margin-bottom:12px">Статистика</h2>
+            <div style="overflow-x:auto">
+                <table class="analytics-table">
+                    <thead><tr><th>Назва</th><th>Перегляди</th><th>Лайки</th><th>Дата</th></tr></thead>
+                    <tbody>${myVideos.map(v => `<tr>
+                        <td><a href="javascript:navigate('watch','${v.id}')" style="color:var(--primary)">${v.title}</a></td>
+                        <td>${formatViews(v.views)}</td>
+                        <td>${v.likes.length}</td>
+                        <td>${formatDate(v.createdAt)}</td>
+                    </tr>`).join('')}</tbody>
+                </table>
+            </div>
+        ` : '<div class="empty-state"><p>Завантажте відео</p></div>'}
+    `;
+}
+</script>
+
+<script>
+function renderProfile() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    const user = data.users.find(u => u.id === state.user.id) || {};
+    const myVideos = data.videos.filter(v => v.authorId === state.user.id);
+    const totalViews = myVideos.reduce((s, v) => s + v.views, 0);
+    const av = user.avatar ? `<img src="${user.avatar}" alt="">` : state.user.nickname[0].toUpperCase();
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="profile-container">
+            <div class="profile-header">
+                <div class="profile-avatar" onclick="document.getElementById('avatarInput').click()" title="Змінити фото">${av}</div>
+                <input type="file" id="avatarInput" accept="image/*" hidden onchange="changeAvatar(this)">
+                <div class="profile-info">
+                    <div class="profile-name">${state.user.nickname}</div>
+                    <div class="profile-stats">${myVideos.length} відео • ${formatViews(totalViews)} переглядів • ${user.subscriberCount || 0} підписників</div>
+                </div>
+            </div>
+            <h2 class="page-title">Мої відео</h2>
+            <div class="video-grid">${myVideos.length ? myVideos.map(videoCard).join('') : '<div class="empty-state"><p>Немає відео</p></div>'}</div>
+        </div>
+    `;
+}
+
+async function changeAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Resize image
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const img = new Image();
+        img.onload = async () => {
+            const canvas = document.createElement('canvas');
+            const size = 200;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Crop to square
+            const minDim = Math.min(img.width, img.height);
+            const sx = (img.width - minDim) / 2;
+            const sy = (img.height - minDim) / 2;
+            ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+            
+            const avatar = canvas.toDataURL('image/jpeg', 0.8);
+            await fetch(API + '/user/update', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ userId: state.user.id, avatar }) 
+            });
+            await loadData();
+            updateAuthUI();
+            renderProfile();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function renderSettings() {
+    if (!state.user) { 
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Увійдіть</p><button class="btn btn-primary" style="margin-top:12px" onclick="showAuthModal()">Увійти</button></div>'; 
+        return; 
+    }
+    const user = data.users.find(u => u.id === state.user.id) || {};
+    const av = user.avatar ? `<img src="${user.avatar}" alt="">` : state.user.nickname[0].toUpperCase();
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="profile-container">
+            <h1 class="page-title"><span class="material-icons">settings</span> Налаштування</h1>
+            
+            <div class="settings-section">
+                <div class="settings-title">Профіль</div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+                    <div class="profile-avatar" style="width:60px;height:60px;font-size:24px" onclick="document.getElementById('avatarInputSettings').click()">${av}</div>
+                    <input type="file" id="avatarInputSettings" accept="image/*" hidden onchange="changeAvatarSettings(this)">
+                    <div>
+                        <button class="btn btn-secondary" onclick="document.getElementById('avatarInputSettings').click()"><span class="material-icons" style="font-size:16px">photo_camera</span> Змінити</button>
+                        ${user.avatar ? `<button class="btn btn-secondary" style="margin-left:8px" onclick="removeAvatar()"><span class="material-icons" style="font-size:16px">delete</span></button>` : ''}
+                    </div>
+                </div>
+                <div class="form-group"><label>Нікнейм</label><input type="text" id="settingsNickname" value="${state.user.nickname}"></div>
+                <button class="btn btn-primary" onclick="saveProfile()"><span class="material-icons" style="font-size:16px">save</span> Зберегти</button>
+            </div>
+            
+            <div class="settings-section">
+                <div class="settings-title">Вигляд</div>
+                <div class="settings-row">
+                    <span><span class="material-icons" style="font-size:18px">dark_mode</span> Темний режим</span>
+                    <div class="toggle-switch ${state.darkMode ? 'active' : ''}" onclick="toggleDarkMode();renderSettings()"></div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <div class="settings-title">Безпека</div>
+                <div class="form-group"><label>Новий пароль</label><input type="password" id="newPassword" placeholder="Мінімум 4 символи"></div>
+                <div class="form-group"><label>Підтвердіть</label><input type="password" id="confirmPassword" placeholder="Повторіть пароль"></div>
+                <button class="btn btn-primary" onclick="changePassword()"><span class="material-icons" style="font-size:16px">lock</span> Змінити пароль</button>
+            </div>
+            
+            <div class="settings-section">
+                <div class="settings-title" style="color:#ff4444">Небезпечна зона</div>
+                <p style="color:var(--text-secondary);margin-bottom:12px;font-size:13px">Видалення акаунту видалить всі ваші відео та дані.</p>
+                <button class="btn" style="background:#ff4444;color:white" onclick="deleteAccount()"><span class="material-icons" style="font-size:16px">delete_forever</span> Видалити акаунт</button>
+            </div>
+        </div>
+    `;
+}
+
+async function changeAvatarSettings(input) {
+    await changeAvatar(input);
+    renderSettings();
+}
+
+async function removeAvatar() {
+    await fetch(API + '/user/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.user.id, avatar: null }) });
+    await loadData();
+    updateAuthUI();
+    renderSettings();
+}
+
+async function saveProfile() {
+    const nickname = document.getElementById('settingsNickname').value.trim();
+    if (nickname.length < 3) { alert('Нікнейм мінімум 3 символи'); return; }
+    const res = await fetch(API + '/user/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.user.id, nickname }) });
+    const result = await res.json();
+    if (result.error) { alert(result.error); return; }
+    state.user.nickname = nickname;
+    localStorage.setItem('tootube_user', JSON.stringify(state.user));
+    await loadData();
+    updateAuthUI();
+    alert('Збережено!');
+}
+
+async function changePassword() {
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = document.getElementById('confirmPassword').value;
+    if (newPass.length < 4) { alert('Пароль мінімум 4 символи'); return; }
+    if (newPass !== confirmPass) { alert('Паролі не співпадають'); return; }
+    await fetch(API + '/user/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.user.id, password: newPass }) });
+    alert('Пароль змінено!');
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+}
+
+async function deleteAccount() {
+    if (!confirm('Видалити акаунт? Всі відео будуть втрачені!')) return;
+    await fetch(API + '/user/' + state.user.id, { method: 'DELETE' });
+    logout();
+    alert('Акаунт видалено');
+}
+</script>
+
+<script>
+// Channel page - view other user's profile
+async function renderChannel(userId) {
+    const user = data.users.find(u => u.id === userId);
+    if (!user) {
+        document.getElementById('mainContent').innerHTML = '<div class="empty-state"><p>Канал не знайдено</p></div>';
+        return;
+    }
+    
+    const userVideos = data.videos.filter(v => v.authorId === userId).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const totalViews = userVideos.reduce((s, v) => s + v.views, 0);
+    const isSubscribed = state.user && data.subscriptions.some(s => s.subscriberId === state.user.id && s.channelId === userId);
+    const isOwn = state.user && state.user.id === userId;
+    const av = user.avatar ? `<img src="${user.avatar}" alt="">` : user.nickname[0].toUpperCase();
+    
+    document.getElementById('mainContent').innerHTML = `
+        <div class="profile-container" style="max-width:1000px">
+            <div class="channel-banner"></div>
+            <div class="channel-header">
+                <div class="channel-header-avatar">${av}</div>
+                <div class="channel-header-info">
+                    <div class="channel-header-name">${user.nickname}</div>
+                    <div class="channel-header-stats">
+                        <span>@${user.nickname.toLowerCase().replace(/\s/g, '')}</span>
+                        <span>•</span>
+                        <span>${user.subscriberCount || 0} підписників</span>
+                        <span>•</span>
+                        <span>${userVideos.length} відео</span>
+                    </div>
+                    <div class="channel-header-stats">${formatViews(totalViews)} переглядів</div>
+                </div>
+                <div class="channel-header-actions">
+                    ${isOwn ? `
+                        <button class="btn btn-secondary" onclick="navigate('settings')"><span class="material-icons" style="font-size:18px">edit</span> Редагувати</button>
+                    ` : state.user ? `
+                        <button class="subscribe-btn ${isSubscribed ? 'subscribed' : ''}" onclick="subscribeFromChannel('${userId}')">${isSubscribed ? 'Підписано' : 'Підписатися'}</button>
+                    ` : `
+                        <button class="btn btn-primary" onclick="showAuthModal()">Підписатися</button>
+                    `}
+                </div>
+            </div>
+            
+            <div class="channel-tabs">
+                <button class="tab active" onclick="showChannelTab('videos', this)">Відео</button>
+                <button class="tab" onclick="showChannelTab('shorts', this)">Shorts</button>
+            </div>
+            
+            <div id="channelVideos" class="video-grid">
+                ${userVideos.filter(v => !v.isShort).length ? userVideos.filter(v => !v.isShort).map(videoCard).join('') : '<div class="empty-state"><p>Немає відео</p></div>'}
+            </div>
+            <div id="channelShorts" class="shorts-grid" style="display:none">
+                ${userVideos.filter(v => v.isShort).length ? userVideos.filter(v => v.isShort).map(shortCard).join('') : '<div class="empty-state"><p>Немає Shorts</p></div>'}
+            </div>
+        </div>
+    `;
+}
+
+function showChannelTab(tab, btn) {
+    document.querySelectorAll('.channel-tabs .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('channelVideos').style.display = tab === 'videos' ? 'grid' : 'none';
+    document.getElementById('channelShorts').style.display = tab === 'shorts' ? 'grid' : 'none';
+}
+
+async function subscribeFromChannel(channelId) {
+    if (!state.user) return showAuthModal();
+    await fetch(API + '/subscribe', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ subscriberId: state.user.id, channelId }) 
+    });
+    await loadData();
+    renderChannel(channelId);
+}
+
+// Update navigate function to include channel
+const originalNavigate = navigate;
+navigate = function(page, id = null) {
+    if (page === 'channel') {
+        state.currentPage = 'channel';
+        renderChannel(id);
+        window.scrollTo(0, 0);
+        return;
+    }
+    originalNavigate(page, id);
+};
+</script>
+
+<style>
+    .channel-banner {
+        height: 150px;
+        background: linear-gradient(135deg, var(--primary) 0%, #ff9500 100%);
+        border-radius: 12px;
+        margin-bottom: -50px;
+    }
+    .channel-header {
+        display: flex;
+        align-items: flex-end;
+        gap: 20px;
+        padding: 0 20px 20px;
+        flex-wrap: wrap;
+    }
+    .channel-header-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: var(--primary);
+        border: 4px solid var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        font-weight: 500;
+        color: #000;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    .channel-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .channel-header-info { flex: 1; min-width: 200px; }
+    .channel-header-name { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .channel-header-stats { 
+        font-size: 13px; 
+        color: var(--text-secondary); 
+        display: flex; 
+        gap: 8px; 
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+    .channel-header-actions { display: flex; gap: 8px; }
+    .channel-tabs { 
+        display: flex; 
+        gap: 8px; 
+        margin: 20px 0 16px; 
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+    }
+    .channel-tabs .tab { 
+        background: transparent; 
+        border: none;
+        padding: 8px 16px;
+        font-weight: 500;
+    }
+    .channel-tabs .tab.active { 
+        border-bottom: 2px solid var(--text);
+        margin-bottom: -9px;
+    }
+    
+    @media (max-width: 768px) {
+        .channel-banner { height: 100px; margin-bottom: -40px; }
+        .channel-header { padding: 0 12px 16px; gap: 12px; }
+        .channel-header-avatar { width: 80px; height: 80px; font-size: 32px; }
+        .channel-header-name { font-size: 18px; }
+        .channel-header-info { min-width: 150px; }
+        .channel-header-actions { width: 100%; }
+        .channel-header-actions .subscribe-btn,
+        .channel-header-actions .btn { flex: 1; justify-content: center; }
+    }
+</style>
+
+<style>
+    .video-thumb-wrap { cursor: pointer; }
+    .video-author { cursor: pointer; }
+    .video-author:hover { color: var(--text); }
+</style>
