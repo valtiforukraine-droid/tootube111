@@ -1,11 +1,11 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const cloudinary = require('cloudinary').v2;
 
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data.json');
 
 // Cloudinary config
 cloudinary.config({
@@ -14,23 +14,74 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET || '8Lpo69j1h3_jZJvMYXFYF2Vp3lc'
 });
 
-function initData() {
-    if (!fs.existsSync(DATA_FILE)) {
-        fs.writeFileSync(DATA_FILE, JSON.stringify({ videos: [], users: [], comments: [], subscriptions: [] }));
-    }
-}
-initData();
+// JSONBin config
+const JSONBIN_ID = process.env.JSONBIN_ID || '695bfa31ae596e708fc6e08e';
+const JSONBIN_KEY = process.env.JSONBIN_KEY || '$2a$10$hQGknUInTFydIXjYiOoPS.DS4ySQntwxcqxjYlSfp7aMHyBdYPowa';
 
-function getData() { 
-    try {
-        initData();
-        return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); 
-    } catch(e) {
-        console.error('Error reading data:', e);
-        return { videos: [], users: [], comments: [], subscriptions: [] };
-    }
+// Cache for data
+let dataCache = null;
+
+async function getData() {
+    if (dataCache) return dataCache;
+    
+    return new Promise((resolve) => {
+        const options = {
+            hostname: 'api.jsonbin.io',
+            path: `/v3/b/${JSONBIN_ID}/latest`,
+            method: 'GET',
+            headers: { 'X-Master-Key': JSONBIN_KEY }
+        };
+        
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    dataCache = parsed.record || { videos: [], users: [], comments: [], subscriptions: [] };
+                    resolve(dataCache);
+                } catch(e) {
+                    console.error('JSONBin read error:', e);
+                    resolve({ videos: [], users: [], comments: [], subscriptions: [] });
+                }
+            });
+        });
+        req.on('error', (e) => {
+            console.error('JSONBin request error:', e);
+            resolve({ videos: [], users: [], comments: [], subscriptions: [] });
+        });
+        req.end();
+    });
 }
-function saveData(data) { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
+
+async function saveData(data) {
+    dataCache = data;
+    
+    return new Promise((resolve) => {
+        const jsonData = JSON.stringify(data);
+        const options = {
+            hostname: 'api.jsonbin.io',
+            path: `/v3/b/${JSONBIN_ID}`,
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_KEY
+            }
+        };
+        
+        const req = https.request(options, (res) => {
+            let responseData = '';
+            res.on('data', chunk => responseData += chunk);
+            res.on('end', () => resolve(true));
+        });
+        req.on('error', (e) => {
+            console.error('JSONBin save error:', e);
+            resolve(false);
+        });
+        req.write(jsonData);
+        req.end();
+    });
+}
 
 function sendJSON(res, data, status = 200) {
     res.writeHead(status, { 
@@ -127,7 +178,7 @@ const server = http.createServer(async (req, res) => {
 
     // API: Get data
     if (req.method === 'GET' && pathname === '/api/data') {
-        return sendJSON(res, getData());
+        return sendJSON(res, await getData());
     }
 
     // API: Upload
@@ -157,7 +208,7 @@ const server = http.createServer(async (req, res) => {
                 uploadStream.end(file.data);
             });
 
-            const data = getData();
+            const data = await getData();
             data.videos.push({
                 id: videoId,
                 title: fields.title,
@@ -172,7 +223,7 @@ const server = http.createServer(async (req, res) => {
                 cloudinaryId: uploadResult.public_id,
                 createdAt: new Date().toISOString()
             });
-            saveData(data);
+            await saveData(data);
             return sendJSON(res, { success: true });
         } catch(err) {
             console.error('Upload error:', err);
@@ -183,7 +234,7 @@ const server = http.createServer(async (req, res) => {
     // API: Register
     if (req.method === 'POST' && pathname === '/api/register') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         if (data.users.find(u => u.nickname === body.nickname)) {
             return sendJSON(res, { error: 'Нікнейм зайнятий' }, 400);
         }
@@ -196,14 +247,14 @@ const server = http.createServer(async (req, res) => {
             createdAt: new Date().toISOString()
         };
         data.users.push(user);
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true, user: { id: user.id, nickname: user.nickname } });
     }
 
     // API: Login
     if (req.method === 'POST' && pathname === '/api/login') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const user = data.users.find(u => u.nickname === body.nickname && u.password === body.password);
         if (!user) return sendJSON(res, { error: 'Невірні дані' }, 401);
         return sendJSON(res, { success: true, user: { id: user.id, nickname: user.nickname } });
@@ -212,7 +263,7 @@ const server = http.createServer(async (req, res) => {
     // API: Like (with toggle support)
     if (req.method === 'POST' && pathname === '/api/like') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const video = data.videos.find(v => v.id === body.videoId);
         if (!video) return sendJSON(res, { error: 'Not found' }, 404);
 
@@ -224,23 +275,23 @@ const server = http.createServer(async (req, res) => {
         if (body.action === 'like') video.likes.push(body.userId);
         else if (body.action === 'dislike') video.dislikes.push(body.userId);
 
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true });
     }
 
     // API: View
     if (req.method === 'POST' && pathname === '/api/view') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const video = data.videos.find(v => v.id === body.videoId);
-        if (video) { video.views++; saveData(data); }
+        if (video) { video.views++; await saveData(data); }
         return sendJSON(res, { success: true });
     }
 
     // API: Comment
     if (req.method === 'POST' && pathname === '/api/comment') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         data.comments.push({
             id: 'c' + Date.now(),
             videoId: body.videoId,
@@ -250,20 +301,20 @@ const server = http.createServer(async (req, res) => {
             likes: [],
             createdAt: new Date().toISOString()
         });
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true });
     }
 
     // API: Like comment
     if (req.method === 'POST' && pathname === '/api/comment/like') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const comment = data.comments.find(c => c.id === body.commentId);
         if (comment) {
             const idx = comment.likes.indexOf(body.userId);
             if (idx > -1) comment.likes.splice(idx, 1);
             else comment.likes.push(body.userId);
-            saveData(data);
+            await saveData(data);
         }
         return sendJSON(res, { success: true });
     }
@@ -271,7 +322,7 @@ const server = http.createServer(async (req, res) => {
     // API: Subscribe
     if (req.method === 'POST' && pathname === '/api/subscribe') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const idx = data.subscriptions.findIndex(s => s.subscriberId === body.subscriberId && s.channelId === body.channelId);
         const channel = data.users.find(u => u.id === body.channelId);
         if (idx > -1) {
@@ -281,14 +332,14 @@ const server = http.createServer(async (req, res) => {
             data.subscriptions.push({ id: 's' + Date.now(), subscriberId: body.subscriberId, channelId: body.channelId });
             if (channel) channel.subscriberCount = (channel.subscriberCount || 0) + 1;
         }
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true });
     }
 
     // API: Delete video
     if (req.method === 'DELETE' && pathname.startsWith('/api/video/')) {
         const videoId = pathname.split('/').pop();
-        const data = getData();
+        const data = await getData();
         const video = data.videos.find(v => v.id === videoId);
         if (video && video.cloudinaryId) {
             try {
@@ -297,14 +348,14 @@ const server = http.createServer(async (req, res) => {
         }
         data.videos = data.videos.filter(v => v.id !== videoId);
         data.comments = data.comments.filter(c => c.videoId !== videoId);
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true });
     }
 
     // API: Update user
     if (req.method === 'POST' && pathname === '/api/user/update') {
         const body = await parseJSON(req);
-        const data = getData();
+        const data = await getData();
         const user = data.users.find(u => u.id === body.userId);
         if (!user) return sendJSON(res, { error: 'Not found' }, 404);
         if (body.nickname) {
@@ -317,14 +368,14 @@ const server = http.createServer(async (req, res) => {
         }
         if (body.password) user.password = body.password;
         if (body.avatar !== undefined) user.avatar = body.avatar;
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true, user: { id: user.id, nickname: user.nickname } });
     }
 
     // API: Delete user
     if (req.method === 'DELETE' && pathname.startsWith('/api/user/')) {
         const userId = pathname.split('/').pop();
-        const data = getData();
+        const data = await getData();
         // Delete user's videos from Cloudinary
         for (const v of data.videos.filter(v => v.authorId === userId)) {
             if (v.cloudinaryId) {
@@ -337,7 +388,7 @@ const server = http.createServer(async (req, res) => {
         data.comments = data.comments.filter(c => c.authorId !== userId);
         data.subscriptions = data.subscriptions.filter(s => s.subscriberId !== userId && s.channelId !== userId);
         data.users = data.users.filter(u => u.id !== userId);
-        saveData(data);
+        await saveData(data);
         return sendJSON(res, { success: true });
     }
 
