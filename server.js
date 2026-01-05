@@ -18,6 +18,9 @@ cloudinary.config({
 const JSONBIN_ID = process.env.JSONBIN_ID || '695bfa31ae596e708fc6e08e';
 const JSONBIN_KEY = process.env.JSONBIN_KEY || '$2a$10$hQGknUInTFydIXjYiOoPS.DS4ySQntwxcqxjYlSfp7aMHyBdYPowa';
 
+// Admin password
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'fO4@juI7"kaR0(agN9#ewX5}xeF8)o';
+
 // Cache for data
 let dataCache = null;
 
@@ -257,6 +260,7 @@ const server = http.createServer(async (req, res) => {
         const data = await getData();
         const user = data.users.find(u => u.nickname === body.nickname && u.password === body.password);
         if (!user) return sendJSON(res, { error: 'Невірні дані' }, 401);
+        if (user.banned) return sendJSON(res, { error: 'Акаунт заблоковано' }, 403);
         return sendJSON(res, { success: true, user: { id: user.id, nickname: user.nickname } });
     }
 
@@ -388,6 +392,135 @@ const server = http.createServer(async (req, res) => {
         data.comments = data.comments.filter(c => c.authorId !== userId);
         data.subscriptions = data.subscriptions.filter(s => s.subscriberId !== userId && s.channelId !== userId);
         data.users = data.users.filter(u => u.id !== userId);
+        await saveData(data);
+        return sendJSON(res, { success: true });
+    }
+
+    // Admin panel
+    if (req.method === 'GET' && pathname === '/admin') {
+        const adminHtml = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(adminHtml);
+    }
+
+    // Admin: Login
+    if (req.method === 'POST' && pathname === '/api/admin/login') {
+        const body = await parseJSON(req);
+        if (body.password === ADMIN_PASSWORD) {
+            return sendJSON(res, { success: true });
+        }
+        return sendJSON(res, { error: 'Невірний пароль' }, 401);
+    }
+
+    // Admin: Get stats
+    if (req.method === 'POST' && pathname === '/api/admin/stats') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        const totalViews = data.videos.reduce((sum, v) => sum + (v.views || 0), 0);
+        return sendJSON(res, {
+            users: data.users.length,
+            videos: data.videos.length,
+            comments: data.comments.length,
+            views: totalViews
+        });
+    }
+
+    // Admin: Get all users
+    if (req.method === 'POST' && pathname === '/api/admin/users') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        return sendJSON(res, data.users.map(u => ({
+            id: u.id,
+            nickname: u.nickname,
+            subscriberCount: u.subscriberCount || 0,
+            banned: u.banned || false,
+            createdAt: u.createdAt
+        })));
+    }
+
+    // Admin: Ban/unban user
+    if (req.method === 'POST' && pathname === '/api/admin/ban') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        const user = data.users.find(u => u.id === body.userId);
+        if (user) {
+            user.banned = !user.banned;
+            await saveData(data);
+        }
+        return sendJSON(res, { success: true });
+    }
+
+    // Admin: Delete user
+    if (req.method === 'POST' && pathname === '/api/admin/deleteUser') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        for (const v of data.videos.filter(v => v.authorId === body.userId)) {
+            if (v.cloudinaryId) {
+                try { await cloudinary.uploader.destroy(v.cloudinaryId, { resource_type: 'video' }); } catch(e) {}
+            }
+        }
+        data.videos = data.videos.filter(v => v.authorId !== body.userId);
+        data.comments = data.comments.filter(c => c.authorId !== body.userId);
+        data.subscriptions = data.subscriptions.filter(s => s.subscriberId !== body.userId && s.channelId !== body.userId);
+        data.users = data.users.filter(u => u.id !== body.userId);
+        await saveData(data);
+        return sendJSON(res, { success: true });
+    }
+
+    // Admin: Get all videos
+    if (req.method === 'POST' && pathname === '/api/admin/videos') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        return sendJSON(res, data.videos.map(v => ({
+            id: v.id,
+            title: v.title,
+            authorName: v.authorName,
+            views: v.views || 0,
+            likes: (v.likes || []).length,
+            createdAt: v.createdAt
+        })));
+    }
+
+    // Admin: Delete video
+    if (req.method === 'POST' && pathname === '/api/admin/deleteVideo') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        const video = data.videos.find(v => v.id === body.videoId);
+        if (video && video.cloudinaryId) {
+            try { await cloudinary.uploader.destroy(video.cloudinaryId, { resource_type: 'video' }); } catch(e) {}
+        }
+        data.videos = data.videos.filter(v => v.id !== body.videoId);
+        data.comments = data.comments.filter(c => c.videoId !== body.videoId);
+        await saveData(data);
+        return sendJSON(res, { success: true });
+    }
+
+    // Admin: Get all comments
+    if (req.method === 'POST' && pathname === '/api/admin/comments') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        return sendJSON(res, data.comments.map(c => ({
+            id: c.id,
+            text: c.text,
+            authorName: c.authorName,
+            videoId: c.videoId,
+            createdAt: c.createdAt
+        })));
+    }
+
+    // Admin: Delete comment
+    if (req.method === 'POST' && pathname === '/api/admin/deleteComment') {
+        const body = await parseJSON(req);
+        if (body.password !== ADMIN_PASSWORD) return sendJSON(res, { error: 'Unauthorized' }, 401);
+        const data = await getData();
+        data.comments = data.comments.filter(c => c.id !== body.commentId);
         await saveData(data);
         return sendJSON(res, { success: true });
     }
