@@ -2,12 +2,17 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const cloudinary = require('cloudinary').v2;
 
 const PORT = process.env.PORT || 3000;
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Cloudinary config
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dbkbvl7o8',
+    api_key: process.env.CLOUDINARY_API_KEY || '547825369251547',
+    api_secret: process.env.CLOUDINARY_API_SECRET || '8Lpo69j1h3_jZJvMYXFYF2Vp3lc'
+});
 
 function initData() {
     if (!fs.existsSync(DATA_FILE)) {
@@ -120,33 +125,6 @@ const server = http.createServer(async (req, res) => {
         return res.end(html);
     }
 
-    // Serve videos
-    if (req.method === 'GET' && pathname.startsWith('/uploads/')) {
-        const filePath = path.join(__dirname, pathname);
-        if (fs.existsSync(filePath)) {
-            const stat = fs.statSync(filePath);
-            const range = req.headers.range;
-            if (range) {
-                const parts = range.replace(/bytes=/, '').split('-');
-                const start = parseInt(parts[0], 10);
-                const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-                res.writeHead(206, {
-                    'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-                    'Accept-Ranges': 'bytes',
-                    'Content-Length': end - start + 1,
-                    'Content-Type': 'video/mp4'
-                });
-                fs.createReadStream(filePath, { start, end }).pipe(res);
-            } else {
-                res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': 'video/mp4' });
-                fs.createReadStream(filePath).pipe(res);
-            }
-            return;
-        }
-        res.writeHead(404);
-        return res.end('Not found');
-    }
-
     // API: Get data
     if (req.method === 'GET' && pathname === '/api/data') {
         return sendJSON(res, getData());
@@ -160,27 +138,46 @@ const server = http.createServer(async (req, res) => {
             return sendJSON(res, { error: 'Missing fields' }, 400);
         }
 
-        const videoId = 'v' + Date.now();
-        const ext = path.extname(file.filename) || '.mp4';
-        const savedFilename = videoId + ext;
-        fs.writeFileSync(path.join(UPLOAD_DIR, savedFilename), file.data);
+        try {
+            const videoId = 'v' + Date.now();
+            
+            // Upload to Cloudinary
+            const uploadResult = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    { 
+                        resource_type: 'video',
+                        public_id: videoId,
+                        folder: 'tootube'
+                    },
+                    (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    }
+                );
+                uploadStream.end(file.data);
+            });
 
-        const data = getData();
-        data.videos.push({
-            id: videoId,
-            title: fields.title,
-            description: fields.description || '',
-            authorId: fields.userId,
-            authorName: fields.userName || 'User',
-            isShort: fields.isShort === 'true',
-            views: 0,
-            likes: [],
-            dislikes: [],
-            videoUrl: '/uploads/' + savedFilename,
-            createdAt: new Date().toISOString()
-        });
-        saveData(data);
-        return sendJSON(res, { success: true });
+            const data = getData();
+            data.videos.push({
+                id: videoId,
+                title: fields.title,
+                description: fields.description || '',
+                authorId: fields.userId,
+                authorName: fields.userName || 'User',
+                isShort: fields.isShort === 'true',
+                views: 0,
+                likes: [],
+                dislikes: [],
+                videoUrl: uploadResult.secure_url,
+                cloudinaryId: uploadResult.public_id,
+                createdAt: new Date().toISOString()
+            });
+            saveData(data);
+            return sendJSON(res, { success: true });
+        } catch(err) {
+            console.error('Upload error:', err);
+            return sendJSON(res, { error: 'Помилка завантаження' }, 500);
+        }
     }
 
     // API: Register
@@ -293,9 +290,10 @@ const server = http.createServer(async (req, res) => {
         const videoId = pathname.split('/').pop();
         const data = getData();
         const video = data.videos.find(v => v.id === videoId);
-        if (video && video.videoUrl) {
-            const filePath = path.join(__dirname, video.videoUrl);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        if (video && video.cloudinaryId) {
+            try {
+                await cloudinary.uploader.destroy(video.cloudinaryId, { resource_type: 'video' });
+            } catch(e) { console.error('Cloudinary delete error:', e); }
         }
         data.videos = data.videos.filter(v => v.id !== videoId);
         data.comments = data.comments.filter(c => c.videoId !== videoId);
@@ -327,12 +325,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'DELETE' && pathname.startsWith('/api/user/')) {
         const userId = pathname.split('/').pop();
         const data = getData();
-        data.videos.filter(v => v.authorId === userId).forEach(v => {
-            if (v.videoUrl) {
-                const fp = path.join(__dirname, v.videoUrl);
-                if (fs.existsSync(fp)) fs.unlinkSync(fp);
+        // Delete user's videos from Cloudinary
+        for (const v of data.videos.filter(v => v.authorId === userId)) {
+            if (v.cloudinaryId) {
+                try {
+                    await cloudinary.uploader.destroy(v.cloudinaryId, { resource_type: 'video' });
+                } catch(e) { console.error('Cloudinary delete error:', e); }
             }
-        });
+        }
         data.videos = data.videos.filter(v => v.authorId !== userId);
         data.comments = data.comments.filter(c => c.authorId !== userId);
         data.subscriptions = data.subscriptions.filter(s => s.subscriberId !== userId && s.channelId !== userId);
