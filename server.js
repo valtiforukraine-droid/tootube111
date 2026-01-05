@@ -3,16 +3,28 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ videos: [], users: [], comments: [], subscriptions: [] }));
-}
 
-function getData() { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+function initData() {
+    if (!fs.existsSync(DATA_FILE)) {
+        fs.writeFileSync(DATA_FILE, JSON.stringify({ videos: [], users: [], comments: [], subscriptions: [] }));
+    }
+}
+initData();
+
+function getData() { 
+    try {
+        initData();
+        return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); 
+    } catch(e) {
+        console.error('Error reading data:', e);
+        return { videos: [], users: [], comments: [], subscriptions: [] };
+    }
+}
 function saveData(data) { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
 
 function sendJSON(res, data, status = 200) {
@@ -88,17 +100,18 @@ function parseMultipart(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
+    try {
+        const parsedUrl = url.parse(req.url, true);
+        const pathname = parsedUrl.pathname;
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204, {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        });
-        return res.end();
-    }
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            });
+            return res.end();
+        }
 
     // Serve index.html
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
@@ -330,6 +343,11 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(404);
     res.end('Not found');
+    } catch(error) {
+        console.error('Server error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
 });
 
 server.listen(PORT, () => console.log(`\n🎬 TooTube: http://localhost:${PORT}\n`));
